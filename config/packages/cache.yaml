@@ -1,0 +1,5 @@
+framework:
+    cache:
+        prefix_seed: app/senior_fullstack_test
+        app: cache.adapter.memcached
+        default_memcached_provider: '%env(MEMCACHED_DSN)%'

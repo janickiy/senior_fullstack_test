@@ -1,0 +1,8 @@
+.git
+.idea
+.env.local
+.env.*.local
+vendor
+var
+node_modules
+docker/mysql/data
