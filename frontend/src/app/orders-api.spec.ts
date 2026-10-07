@@ -1,8 +1,8 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { OrdersApi } from './orders-api';
-import { ImportBatchResult, MarketplaceBatch, OrderPage } from './orders.models';
+import { OrdersApi } from './orders/infrastructure/orders-api';
+import { ImportBatchResult, MarketplaceBatch, OrderPage } from './orders/domain/orders.models';
 
 describe('OrdersApi', () => {
   let api: OrdersApi;

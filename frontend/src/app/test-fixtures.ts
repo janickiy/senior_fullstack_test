@@ -4,7 +4,7 @@ import type {
   MarketplaceBatch,
   OrderPage,
   OrderView,
-} from './orders.models';
+} from './orders/domain/orders.models';
 
 // Ответы API для проверки поведения интерфейса через HTTP, без подмены store.
 export const fixturePayload: MarketplaceBatch = {

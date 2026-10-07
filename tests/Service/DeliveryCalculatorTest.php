@@ -2,8 +2,8 @@
 
 namespace App\Tests\Service;
 
-use App\Exception\InvalidOrderException;
-use App\Service\Import\DeliveryCalculator;
+use App\Domain\Order\DeliveryCalculator;
+use App\Domain\Order\InvalidOrderException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 

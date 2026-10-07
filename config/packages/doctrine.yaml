@@ -13,10 +13,10 @@ doctrine:
         auto_mapping: true
         mappings:
             App:
-                type: attribute
+                type: xml
                 is_bundle: false
-                dir: '%kernel.project_dir%/src/Entity'
-                prefix: 'App\Entity'
+                dir: '%kernel.project_dir%/src/Infrastructure/Doctrine/Mapping'
+                prefix: 'App\Domain\Order'
                 alias: App
 
 when@test:
