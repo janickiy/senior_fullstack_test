@@ -28,7 +28,9 @@ services:
     restart: unless-stopped
 
   nginx:
-    image: nginx:stable-alpine
+    build:
+      context: .
+      dockerfile: docker/frontend/Dockerfile
     ports:
       - "127.0.0.1:${HTTP_PORT:-8081}:80"
     volumes:

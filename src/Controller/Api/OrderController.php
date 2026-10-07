@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Controller;
+namespace App\Controller\Api;
 
 use App\DTO\Order\ImportOrdersRequestDto;
 use App\DTO\Order\OrderListQueryDto;

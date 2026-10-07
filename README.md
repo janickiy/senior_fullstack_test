@@ -1,30 +1,46 @@
-# Symfony API в Docker
+# Магазин заказов: Symfony и Angular
 
-Минимальный API на Symfony 8.1.8 и Doctrine ORM. Окружение включает PHP 8.4 FPM,
-MySQL 8.4, Memcached 1.6 и Nginx. Версии PHP-пакетов закреплены в `composer.lock`.
+## Требования
 
-## Первый запуск
+- Docker Engine и Docker Compose v2 (или Docker Desktop).
+- Свободный порт `8081`. Другой порт можно задать через `HTTP_PORT`.
+- PHP, Composer, Node.js и npm на компьютере не требуются: установка и сборка выполняются в Docker.
 
-Нужны установленный Docker с Compose v2 или новее и запущенный Docker Engine
-(например, Docker Desktop). Все команды выполняются из корня проекта.
+## Пакеты
 
-На macOS и Linux перед сборкой задайте владельца файлов, которые создаёт PHP:
+- Symfony 8.1, Serializer, Validator — API.
+- Doctrine ORM, DoctrineBundle, Doctrine Migrations — работа с базой и миграции.
+- Angular 22, TypeScript 6, RxJS 7 — интерфейс магазина.
+- PHP 8.4 FPM, MySQL 8.4, Memcached 1.6, Nginx — серверное окружение.
+- Node.js 24 — сборка Angular; PHPUnit 13 и Vitest — тесты.
 
-Затем соберите образ, установите зависимости и запустите сервисы:
+Версии зависимостей закреплены в `composer.lock` и `frontend/package-lock.json`.
+
+## Установка
+
+Выполните из корня проекта. На macOS и Linux сначала задайте владельца файлов:
+
+Соберите образы, установите зависимости PHP, запустите сервисы и примените миграции:
 
 ```sh
 docker compose build
 docker compose run --rm --no-deps php composer install --no-interaction
 docker compose up -d --wait
+docker compose exec php bin/console doctrine:migrations:migrate --no-interaction
 ```
 
-API доступен по адресу [http://localhost:8081](http://localhost:8081).
-`GET /` возвращает JSON со статусом и версией Symfony. Это стартовая проверка
-окружения; бизнес-методы API ещё не добавлены.
+Откройте [http://localhost:8081](http://localhost:8081). Angular и API доступны через один Nginx; запросы `/api/` передаются в Symfony.
 
-## Настройки
+Данные MySQL сохраняются в `docker/mysql/data`. По умолчанию база, пользователь и пароль — `app`. Локальные настройки можно задать в `.env.local`.
 
-По умолчанию база называется `app`, пользователь — `app`, пароль — `app`.
-PHP подключается к сервисам `mysql:3306` и `memcached:11211` внутри сети Docker.
-MySQL и Memcached не публикуют порты на компьютере; Nginx доступен только локально.
+После изменений Angular обновите интерфейс:
 
+```sh
+docker compose up -d --build --wait nginx
+```
+
+Остановка окружения:
+
+```sh
+docker compose down
+```
