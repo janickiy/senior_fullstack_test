@@ -1,4 +1,3 @@
-import { provideOrdersApi } from './orders/infrastructure/orders-api';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
@@ -21,7 +20,7 @@ describe('Интерфейс заказов', () => {
     window.history.replaceState(null, '', '/');
     await TestBed.configureTestingModule({
       imports: [App],
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideOrdersApi()],
+      providers: [provideHttpClient(), provideHttpClientTesting()],
     }).compileComponents();
 
     http = TestBed.inject(HttpTestingController);

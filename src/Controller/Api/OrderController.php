@@ -2,12 +2,10 @@
 
 namespace App\Controller\Api;
 
-use App\Application\Order\ImportOrders;
-use App\Application\Order\ListOrders;
-use App\Application\Order\OrderCriteria;
-use App\Controller\Api\Request\ImportOrdersRequestDto;
-use App\Controller\Api\Request\OrderListQueryDto;
-use App\Domain\Order\OrderStatus;
+use App\DTO\Order\ImportOrdersRequestDto;
+use App\DTO\Order\OrderListQueryDto;
+use App\Repository\OrderRepositoryInterface;
+use App\Service\OrderImportService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpKernel\Attribute\MapQueryString;
@@ -17,18 +15,14 @@ use Symfony\Component\Routing\Attribute\Route;
 #[Route('/api/shops/{shopId}/orders', requirements: ['shopId' => '[A-Za-z0-9_-]{1,64}'], format: 'json')]
 final class OrderController extends AbstractController
 {
-    public function __construct(private readonly OrderResponse $response)
-    {
-    }
-
     #[Route('/import', name: 'api_orders_import', methods: ['POST'])]
     public function import(
         string $shopId,
         #[MapRequestPayload(acceptFormat: 'json')]
         ImportOrdersRequestDto $request,
-        ImportOrders $importer,
+        OrderImportService $importer,
     ): JsonResponse {
-        return $this->json($this->response->batch($importer->import($shopId, $request->orders)));
+        return $this->json($importer->import($shopId, $request)->toArray());
     }
 
     #[Route('', name: 'api_orders_list', methods: ['GET'])]
@@ -36,10 +30,8 @@ final class OrderController extends AbstractController
         string $shopId,
         #[MapQueryString(validationFailedStatusCode: 422)]
         OrderListQueryDto $query,
-        ListOrders $orders,
+        OrderRepositoryInterface $orders,
     ): JsonResponse {
-        $criteria = new OrderCriteria(null === $query->status ? null : OrderStatus::from($query->status), $query->page, $query->limit);
-
-        return $this->json($this->response->page($orders->list($shopId, $criteria)));
+        return $this->json($orders->findPageForShop($shopId, $query)->toArray());
     }
 }

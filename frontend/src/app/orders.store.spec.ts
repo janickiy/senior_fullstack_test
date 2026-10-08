@@ -1,9 +1,8 @@
-import { provideOrdersApi } from './orders/infrastructure/orders-api';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { ImportBatchResult, OrderPage, OrderView } from './orders/domain/orders.models';
-import { OrdersStore } from './orders/application/orders.store';
+import { ImportBatchResult, OrderPage, OrderView } from './orders.models';
+import { OrdersStore } from './orders.store';
 
 describe('OrdersStore', () => {
   let store: OrdersStore;
@@ -78,7 +77,7 @@ describe('OrdersStore', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideOrdersApi()],
+      providers: [provideHttpClient(), provideHttpClientTesting()],
     });
     store = TestBed.inject(OrdersStore);
     http = TestBed.inject(HttpTestingController);
@@ -120,10 +119,8 @@ describe('OrdersStore', () => {
     expect(store.shopError()).toContain('ID магазина');
     http.expectNone(() => true);
 
-    store.importOrders();
-    http.expectOne('/assets/marketplace-orders.json').flush({ orders: [{ id: 'MP-1009' }] });
-    http.expectOne('/api/shops/1/orders/import').flush(report);
-    http.expectOne('/api/shops/1/orders?page=1&limit=10').flush(page([sampleOrder]));
+    store.importReport.set(report);
+    store.orders.set([sampleOrder]);
     expect(store.setShop(' second-shop ')).toBe(true);
     expect(store.shopId()).toBe('second-shop');
     expect(store.orders()).toEqual([]);

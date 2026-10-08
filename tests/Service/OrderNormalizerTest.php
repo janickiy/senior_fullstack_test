@@ -2,8 +2,9 @@
 
 namespace App\Tests\Service;
 
-use App\Domain\Order\InvalidOrderException;
-use App\Infrastructure\Marketplace\OrderNormalizer;
+use App\Exception\InvalidOrderException;
+use App\Service\Import\DeliveryCalculator;
+use App\Service\Import\OrderNormalizer;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
@@ -14,7 +15,7 @@ final class OrderNormalizerTest extends KernelTestCase
 
     protected function setUp(): void
     {
-        $this->normalizer = new OrderNormalizer(static::getContainer()->get(ValidatorInterface::class));
+        $this->normalizer = new OrderNormalizer(static::getContainer()->get(ValidatorInterface::class), new DeliveryCalculator());
     }
 
     public function testNormalizesValidOrderAndCalculatesDelivery(): void
@@ -22,7 +23,7 @@ final class OrderNormalizerTest extends KernelTestCase
         $order = $this->normalizer->normalize(self::validOrder());
 
         self::assertSame('MP-1001', $order->marketplaceId);
-        self::assertSame('new', $order->status->value);
+        self::assertSame('new', $order->status);
         self::assertSame('Анна Лебедева', $order->customerName);
         self::assertSame('+79001234567', $order->customerPhone);
         self::assertSame('2026-10-10T14:00:00+03:00', $order->deliveryStartsAt->format(\DateTimeInterface::RFC3339));
@@ -40,7 +41,7 @@ final class OrderNormalizerTest extends KernelTestCase
         $raw = self::validOrder();
         $raw['status'] = $input;
 
-        self::assertSame($expected, $this->normalizer->normalize($raw)->status->value);
+        self::assertSame($expected, $this->normalizer->normalize($raw)->status);
     }
 
     public static function statuses(): iterable
