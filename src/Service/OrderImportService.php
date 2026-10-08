@@ -11,6 +11,11 @@ use App\Service\Import\OrderNormalizer;
 use Doctrine\DBAL\Exception;
 use Psr\Log\LoggerInterface;
 
+/**
+ * Импортирует пачку заказов маркетплейса для указанного магазина.
+ * Выявляет дубли, передаёт заказы на проверку и сохранение, собирает результат
+ * по каждой записи и продолжает обработку при ошибке отдельного заказа.
+ */
 final class OrderImportService
 {
     public function __construct(
@@ -20,6 +25,11 @@ final class OrderImportService
     ) {
     }
 
+    /**
+     * @param string $shopId
+     * @param ImportOrdersRequestDto $request
+     * @return ImportBatchResultDto
+     */
     public function import(string $shopId, ImportOrdersRequestDto $request): ImportBatchResultDto
     {
         $seen = [];

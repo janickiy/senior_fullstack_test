@@ -2,6 +2,7 @@
 
 namespace App\DTO\Import;
 
+use App\Enum\OrderStatus;
 use Symfony\Component\DependencyInjection\Attribute\Exclude;
 use Symfony\Component\Validator\Constraints as Assert;
 
@@ -18,7 +19,7 @@ final readonly class MarketplaceOrderInputDto
         #[Assert\Sequentially([
             new Assert\NotBlank(message: 'Укажите статус заказа.'),
             new Assert\Type(type: 'string', message: 'Статус должен быть строкой.'),
-            new Assert\Choice(choices: ['NEW', 'ACCEPTED', 'IN_DELIVERY', 'DONE', 'CANCELED'], message: 'Неизвестный статус маркетплейса.'),
+            new Assert\Choice(callback: [OrderStatus::class, 'marketplaceValues'], message: 'Неизвестный статус маркетплейса.'),
         ])]
         public mixed $status,
         #[Assert\Sequentially([

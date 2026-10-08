@@ -4,6 +4,11 @@ namespace App\Service\Import;
 
 use App\Exception\InvalidOrderException;
 
+/**
+ * Рассчитывает стоимость доставки в копейках по тарифу района и сумме товаров.
+ * Учитывает порог бесплатной доставки и доплату за срочность; для самовывоза
+ * возвращает нулевую стоимость, а для неизвестного района сообщает об ошибке.
+ */
 final class DeliveryCalculator
 {
     private const array TARIFFS = [

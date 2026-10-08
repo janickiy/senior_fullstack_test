@@ -6,19 +6,18 @@ use App\DTO\Import\DeliveryInputDto;
 use App\DTO\Import\MarketplaceOrderInputDto;
 use App\DTO\Import\NormalizedOrderDto;
 use App\DTO\Import\OrderItemInputDto;
+use App\Enum\OrderStatus;
 use App\Exception\InvalidOrderException;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
+/**
+ * Проверяет данные заказа маркетплейса и подготавливает их к сохранению.
+ * Приводит телефон, статус, даты и денежные суммы к внутреннему формату,
+ * рассчитывает суммы товаров и доставки, отмечает расхождение с суммой
+ * маркетплейса и возвращает нормализованный DTO заказа.
+ */
 final class OrderNormalizer
 {
-    private const array STATUSES = [
-        'NEW' => 'new',
-        'ACCEPTED' => 'accepted',
-        'IN_DELIVERY' => 'delivering',
-        'DONE' => 'delivered',
-        'CANCELED' => 'cancelled',
-    ];
-
     private const array ORDER_FIELDS = [
         'marketplaceId' => ['id', 'invalid_id'],
         'status' => ['status', 'unknown_status'],
@@ -152,7 +151,7 @@ final class OrderNormalizer
 
         return new NormalizedOrderDto(
             marketplaceId: (string) $input->marketplaceId,
-            status: self::STATUSES[$input->status],
+            status: OrderStatus::fromMarketplace($input->status)->value,
             createdAt: $createdAt,
             customerName: $input->customerName,
             customerPhone: '+7'.substr($customerPhone, 1),
@@ -198,6 +197,13 @@ final class OrderNormalizer
         throw new InvalidOrderException($reasonCode, (string) $first->getMessage(), $details);
     }
 
+    /**
+     * @param int|float|string $value
+     * @param string $reasonCode
+     * @param string $field
+     * @return int
+     * @throws \JsonException
+     */
     private function moneyToCents(int|float|string $value, string $reasonCode, string $field): int
     {
         if (\is_float($value)) {

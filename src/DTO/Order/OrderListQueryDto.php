@@ -19,12 +19,4 @@ final readonly class OrderListQueryDto
         public int $limit = 20,
     ) {
     }
-
-    #[Assert\Callback]
-    public function validateOffset(ExecutionContextInterface $context): void
-    {
-        if ($this->limit > 0 && $this->page > intdiv(PHP_INT_MAX, $this->limit)) {
-            $context->buildViolation('Номер страницы слишком большой.')->atPath('page')->addViolation();
-        }
-    }
 }
