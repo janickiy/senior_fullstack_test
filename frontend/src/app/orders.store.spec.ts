@@ -3,64 +3,26 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { ImportBatchResult, OrderPage, OrderView } from './orders.models';
 import { OrdersStore } from './orders.store';
+import {
+  invalidPhoneResult,
+  reviewImportResult,
+  reviewOrder as sampleOrder,
+} from './test-fixtures';
 
 describe('OrdersStore', () => {
   let store: OrdersStore;
   let http: HttpTestingController;
 
-  const sampleOrder: OrderView = {
-    id: 1,
-    marketplace_id: 'MP-1009',
-    status: 'new',
-    created_at: '2026-10-09T16:00:00+03:00',
-    customer: { name: 'Алексей Никитин', phone: '+79003334455' },
-    delivery: {
-      type: 'delivery',
-      district: 'suburb',
-      address: 'п. Радостный, 12',
-      starts_at: '2026-10-13T10:00:00+03:00',
-      ends_at: '2026-10-13T12:00:00+03:00',
-    },
-    items: [{ sku: 'B-109', name: 'Букет «Классика»', qty: 2, price: 1800 }],
-    items_total: 3600,
-    marketplace_total: 3000,
-    delivery_cost: 700,
-    total: 4300,
-    needs_review: true,
-  };
   const report: ImportBatchResult = {
     summary: { total: 2, created: 1, updated: 0, unchanged: 0, duplicate: 0, rejected: 1 },
     results: [
       {
+        ...reviewImportResult,
         index: 0,
-        marketplace_id: 'MP-1009',
-        outcome: 'created',
-        code: 'created',
-        message: 'Заказ создан.',
-        order_id: 1,
-        status: 'new',
-        needs_review: true,
-        items_total: 3600,
-        delivery_cost: 700,
-        total: 4300,
-        warnings: [
-          { code: 'total_mismatch', message: 'Сумма позиций отличается от total маркетплейса.' },
-        ],
-        errors: [],
       },
       {
+        ...invalidPhoneResult,
         index: 1,
-        marketplace_id: 'MP-1007',
-        outcome: 'rejected',
-        code: 'invalid_phone',
-        message: 'Неверный телефон.',
-        order_id: null,
-        status: null,
-        needs_review: null,
-        items_total: null,
-        delivery_cost: null,
-        total: null,
-        warnings: [],
         errors: [
           {
             field: 'customer.phone',

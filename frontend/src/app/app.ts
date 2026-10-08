@@ -137,9 +137,9 @@ export class App implements OnInit {
   }
 
   deliveryInterval(order: OrderView): string {
-    if (!order.delivery.starts_at || !order.delivery.ends_at) return 'В удобное время';
-    const start = new Date(order.delivery.starts_at);
-    return `${this.dateFormatter.format(start)} · ${this.timeFormatter.format(start)}–${this.timeFormatter.format(new Date(order.delivery.ends_at))}`;
+    const { starts_at, ends_at } = order.delivery;
+    if (!starts_at || !ends_at) return 'В удобное время';
+    return `${this.dateFormatter.format(new Date(starts_at))} · ${this.timeWindow(starts_at, ends_at)}`;
   }
 
   createdDate(order: OrderView): string {
@@ -154,13 +154,16 @@ export class App implements OnInit {
   }
 
   deliveryWindow(order: OrderView): string {
-    if (order.delivery.type === 'pickup') return 'Из магазина';
+    const { type, starts_at, ends_at, district } = order.delivery;
+    if (type === 'pickup') return 'Из магазина';
     const interval =
-      order.delivery.starts_at && order.delivery.ends_at
-        ? `${this.timeFormatter.format(new Date(order.delivery.starts_at))}–${this.timeFormatter.format(new Date(order.delivery.ends_at))}`
-        : 'Интервал не указан';
-    const district = this.districtLabel(order.delivery.district);
-    return district ? `${interval} · ${district}` : interval;
+      starts_at && ends_at ? this.timeWindow(starts_at, ends_at) : 'Интервал не указан';
+    const districtName = this.districtLabel(district);
+    return districtName ? `${interval} · ${districtName}` : interval;
+  }
+
+  private timeWindow(start: string, end: string): string {
+    return `${this.timeFormatter.format(new Date(start))}–${this.timeFormatter.format(new Date(end))}`;
   }
 
   districtLabel(district: string | null): string {

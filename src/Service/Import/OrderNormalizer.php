@@ -55,14 +55,7 @@ final class OrderNormalizer
         );
         $this->validate($input, self::ORDER_FIELDS);
 
-        $customerPhone = preg_replace('/[\s()\-]/u', '', $input->customerPhone);
-        $customerPhone = ltrim($customerPhone, '+');
-
-        if (!preg_match('/^[78][0-9]{10}$/D', $customerPhone)) {
-            throw new InvalidOrderException('invalid_phone', 'Телефон должен содержать 11 цифр и начинаться с 7 или 8.', [
-                ['field' => 'customer.phone', 'message' => 'Не удалось привести телефон к формату +7XXXXXXXXXX.'],
-            ]);
-        }
+        $customerPhone = $this->normalizePhone($input->customerPhone);
 
         $createdAt = new \DateTimeImmutable($input->createdAt);
         $district = $address = $startsAt = $endsAt = null;
@@ -95,14 +88,64 @@ final class OrderNormalizer
             }
         }
 
-        if (!array_is_list($input->items)) {
+        [$items, $itemsTotalCents] = $this->normalizeItems($input->items);
+        $marketplaceTotalCents = $this->moneyToCents($input->marketplaceTotal, 'invalid_total', 'total');
+        $deliveryCostCents = $this->deliveryCalculator->calculate($input->deliveryType, $district, $itemsTotalCents, $createdAt, $startsAt);
+
+        if ($itemsTotalCents > \PHP_INT_MAX - $deliveryCostCents) {
+            throw new InvalidOrderException('amount_too_large', 'Итоговая сумма заказа слишком велика.');
+        }
+
+        return new NormalizedOrderDto(
+            marketplaceId: (string) $input->marketplaceId,
+            status: OrderStatus::fromMarketplace($input->status)->value,
+            createdAt: $createdAt,
+            customerName: $input->customerName,
+            customerPhone: $customerPhone,
+            deliveryType: $input->deliveryType,
+            district: $district,
+            address: $address,
+            deliveryStartsAt: $startsAt,
+            deliveryEndsAt: $endsAt,
+            items: $items,
+            itemsTotalCents: $itemsTotalCents,
+            marketplaceTotalCents: $marketplaceTotalCents,
+            needsReview: $itemsTotalCents !== $marketplaceTotalCents,
+            deliveryCostCents: $deliveryCostCents,
+            grandTotalCents: $itemsTotalCents + $deliveryCostCents,
+        );
+    }
+
+    /** Проверяет телефон и приводит его к формату +7XXXXXXXXXX. */
+    private function normalizePhone(string $phone): string
+    {
+        $phone = preg_replace('/[\s()\-]/u', '', $phone);
+        $phone = ltrim($phone, '+');
+
+        if (!preg_match('/^[78][0-9]{10}$/D', $phone)) {
+            throw new InvalidOrderException('invalid_phone', 'Телефон должен содержать 11 цифр и начинаться с 7 или 8.', [
+                ['field' => 'customer.phone', 'message' => 'Не удалось привести телефон к формату +7XXXXXXXXXX.'],
+            ]);
+        }
+
+        return '+7'.substr($phone, 1);
+    }
+
+    /**
+     * Проверяет позиции и рассчитывает их общую стоимость в копейках.
+     *
+     * @return array{list<array{sku: string, name: string, qty: int, unit_price_cents: int}>, int}
+     */
+    private function normalizeItems(array $rawItems): array
+    {
+        if (!array_is_list($rawItems)) {
             throw new InvalidOrderException('invalid_items', 'Позиции заказа должны быть списком.');
         }
 
         $items = [];
         $itemsTotalCents = 0;
 
-        foreach ($input->items as $index => $rawItem) {
+        foreach ($rawItems as $index => $rawItem) {
             if (!\is_array($rawItem)) {
                 throw new InvalidOrderException('invalid_items', 'Каждая позиция заказа должна быть объектом.', [
                     ['field' => 'items.'.$index, 'message' => 'Некорректная позиция заказа.'],
@@ -142,31 +185,7 @@ final class OrderNormalizer
             ];
         }
 
-        $marketplaceTotalCents = $this->moneyToCents($input->marketplaceTotal, 'invalid_total', 'total');
-        $deliveryCostCents = $this->deliveryCalculator->calculate($input->deliveryType, $district, $itemsTotalCents, $createdAt, $startsAt);
-
-        if ($itemsTotalCents > \PHP_INT_MAX - $deliveryCostCents) {
-            throw new InvalidOrderException('amount_too_large', 'Итоговая сумма заказа слишком велика.');
-        }
-
-        return new NormalizedOrderDto(
-            marketplaceId: (string) $input->marketplaceId,
-            status: OrderStatus::fromMarketplace($input->status)->value,
-            createdAt: $createdAt,
-            customerName: $input->customerName,
-            customerPhone: '+7'.substr($customerPhone, 1),
-            deliveryType: $input->deliveryType,
-            district: $district,
-            address: $address,
-            deliveryStartsAt: $startsAt,
-            deliveryEndsAt: $endsAt,
-            items: $items,
-            itemsTotalCents: $itemsTotalCents,
-            marketplaceTotalCents: $marketplaceTotalCents,
-            needsReview: $itemsTotalCents !== $marketplaceTotalCents,
-            deliveryCostCents: $deliveryCostCents,
-            grandTotalCents: $itemsTotalCents + $deliveryCostCents,
-        );
+        return [$items, $itemsTotalCents];
     }
 
     private function trim(mixed $value): mixed

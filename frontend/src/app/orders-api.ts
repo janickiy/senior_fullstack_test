@@ -1,6 +1,6 @@
 import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { catchError, from, mergeMap, Observable, throwError } from 'rxjs';
+import { catchError, Observable, throwError } from 'rxjs';
 import { ImportBatchResult, OrderPage, OrderStatus } from './orders.models';
 
 @Injectable({ providedIn: 'root' })
@@ -41,20 +41,18 @@ export class OrdersApi {
         if (!(error instanceof HttpErrorResponse) || !(error.error instanceof Blob)) {
           return throwError(() => error);
         }
-        return from(this.decodeDownloadError(error)).pipe(
-          mergeMap((decoded) => throwError(() => decoded)),
-        );
+        return this.decodeDownloadError(error);
       }),
     );
   }
 
-  private decodeDownloadError(error: HttpErrorResponse): Promise<HttpErrorResponse> {
-    return new Promise((resolve) => {
+  private decodeDownloadError(error: HttpErrorResponse): Promise<never> {
+    return new Promise((_, reject) => {
       const reader = new FileReader();
-      reader.onerror = () => resolve(error);
+      reader.onerror = () => reject(error);
       reader.onload = () => {
         try {
-          resolve(
+          reject(
             new HttpErrorResponse({
               error: JSON.parse(String(reader.result)),
               headers: error.headers,
@@ -64,7 +62,7 @@ export class OrdersApi {
             }),
           );
         } catch {
-          resolve(error);
+          reject(error);
         }
       };
       reader.readAsText(error.error);

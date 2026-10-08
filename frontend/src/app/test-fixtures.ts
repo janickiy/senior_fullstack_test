@@ -77,6 +77,30 @@ const rejectedResult: ImportOrderResult = {
   total: null,
 };
 
+export const invalidPhoneResult: ImportOrderResult = {
+  ...rejectedResult,
+  index: 6,
+  marketplace_id: 'MP-1007',
+  code: 'invalid_phone',
+  message: 'Некорректный телефон покупателя.',
+};
+
+export const reviewImportResult: ImportOrderResult = {
+  ...acceptedResult,
+  index: 8,
+  marketplace_id: 'MP-1009',
+  needs_review: true,
+  items_total: 3600,
+  delivery_cost: 700,
+  total: 4300,
+  warnings: [
+    {
+      code: 'total_mismatch',
+      message: 'Сумма позиций отличается от total маркетплейса: нужна проверка.',
+    },
+  ],
+};
+
 export const importReport: ImportBatchResult = {
   summary: { total: 11, created: 7, updated: 0, unchanged: 0, duplicate: 1, rejected: 3 },
   results: [
@@ -92,13 +116,7 @@ export const importReport: ImportBatchResult = {
       code: 'unknown_district',
       message: 'Для района zarechye не задан тариф доставки.',
     },
-    {
-      ...rejectedResult,
-      index: 6,
-      marketplace_id: 'MP-1007',
-      code: 'invalid_phone',
-      message: 'Некорректный телефон покупателя.',
-    },
+    invalidPhoneResult,
     {
       ...rejectedResult,
       index: 7,
@@ -106,21 +124,7 @@ export const importReport: ImportBatchResult = {
       code: 'unknown_status',
       message: 'Неизвестный статус PACKING.',
     },
-    {
-      ...acceptedResult,
-      index: 8,
-      marketplace_id: 'MP-1009',
-      needs_review: true,
-      items_total: 3600,
-      delivery_cost: 700,
-      total: 4300,
-      warnings: [
-        {
-          code: 'total_mismatch',
-          message: 'Сумма позиций отличается от total маркетплейса: нужна проверка.',
-        },
-      ],
-    },
+    reviewImportResult,
     {
       ...rejectedResult,
       index: 9,

@@ -14,6 +14,7 @@ use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Query;
+use Doctrine\ORM\QueryBuilder;
 use Doctrine\Persistence\ManagerRegistry;
 use Symfony\Component\DependencyInjection\Attribute\AsAlias;
 
@@ -21,7 +22,7 @@ use Symfony\Component\DependencyInjection\Attribute\AsAlias;
 #[AsAlias(OrderRepositoryInterface::class)]
 final class OrderRepository extends ServiceEntityRepository implements OrderRepositoryInterface
 {
-
+    /** Подключает репозиторий заказов к менеджеру Doctrine. */
     public function __construct(private readonly ManagerRegistry $managerRegistry)
     {
         parent::__construct($managerRegistry, MarketplaceOrder::class);
@@ -99,9 +100,9 @@ final class OrderRepository extends ServiceEntityRepository implements OrderRepo
         [$saved, $outcome, $code, $message] = $manager->wrapInTransaction(
             function (EntityManagerInterface $manager) use ($shopId, $order): array {
                 /** @var MarketplaceOrder|null $existing */
-                $existing = $this->createQueryBuilder('orders')
-                    ->where('orders.shopId = :shop')->setParameter('shop', $shopId)
-                    ->andWhere('orders.marketplaceId = :marketplace')->setParameter('marketplace', $order->marketplaceId)
+                $existing = $this->queryForShop($shopId)
+                    ->andWhere('orders.marketplaceId = :marketplace')
+                    ->setParameter('marketplace', $order->marketplaceId)
                     ->getQuery()
                     ->setHint(Query::HINT_REFRESH, true)
                     ->setLockMode(LockMode::PESSIMISTIC_WRITE)
@@ -145,13 +146,19 @@ final class OrderRepository extends ServiceEntityRepository implements OrderRepo
      */
     public function findPageForShop(string $shopId, OrderListQueryDto $query): OrderPageDto
     {
-        $builder = $this->createQueryBuilder('orders')->where('orders.shopId = :shop')->setParameter('shop', $shopId);
+        $builder = $this->queryForShop($shopId);
         if (null !== $query->status) {
             $builder->andWhere('orders.status = :status')->setParameter('status', $query->status);
         }
         $total = (int) (clone $builder)->select('COUNT(orders.id)')->getQuery()->getSingleScalarResult();
-        $orders = $builder->orderBy('orders.createdAt', 'DESC')->addOrderBy('orders.id', 'DESC')
-            ->setFirstResult(($query->page - 1) * $query->limit)->setMaxResults($query->limit)->getQuery()->setHint(Query::HINT_REFRESH, true)->getResult();
+        $orders = $builder
+            ->orderBy('orders.createdAt', 'DESC')
+            ->addOrderBy('orders.id', 'DESC')
+            ->setFirstResult(($query->page - 1) * $query->limit)
+            ->setMaxResults($query->limit)
+            ->getQuery()
+            ->setHint(Query::HINT_REFRESH, true)
+            ->getResult();
 
         return new OrderPageDto(array_map(OrderViewDto::fromEntity(...), $orders), $query->page, $query->limit, $total);
     }
@@ -165,10 +172,12 @@ final class OrderRepository extends ServiceEntityRepository implements OrderRepo
     public function iterateForShop(string $shopId): iterable
     {
         $manager = $this->getEntityManager();
-        $orders = $this->createQueryBuilder('orders')
-            ->where('orders.shopId = :shop')->setParameter('shop', $shopId)
-            ->orderBy('orders.createdAt', 'DESC')->addOrderBy('orders.id', 'DESC')
-            ->getQuery()->setHint(Query::HINT_REFRESH, true)->toIterable();
+        $orders = $this->queryForShop($shopId)
+            ->orderBy('orders.createdAt', 'DESC')
+            ->addOrderBy('orders.id', 'DESC')
+            ->getQuery()
+            ->setHint(Query::HINT_REFRESH, true)
+            ->toIterable();
 
         foreach ($orders as $order) {
             $view = OrderViewDto::fromEntity($order);
@@ -176,5 +185,13 @@ final class OrderRepository extends ServiceEntityRepository implements OrderRepo
 
             yield $view;
         }
+    }
+
+    /** Создаёт запрос, ограниченный заказами указанного магазина. */
+    private function queryForShop(string $shopId): QueryBuilder
+    {
+        return $this->createQueryBuilder('orders')
+            ->where('orders.shopId = :shop')
+            ->setParameter('shop', $shopId);
     }
 }

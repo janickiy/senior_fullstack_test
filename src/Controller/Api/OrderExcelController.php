@@ -50,10 +50,9 @@ final class OrderExcelController extends AbstractController
         }
 
         $result = $importer->import($shopId, new ImportOrdersRequestDto($orders))->toArray();
-        foreach ($result['results'] as &$row) {
-            $row['source_row'] = $orders[$row['index']]['_source_row'] ?? $row['index'] + 2;
+        foreach ($result['results'] as $index => $row) {
+            $result['results'][$index]['source_row'] = $orders[$row['index']]['_source_row'] ?? $row['index'] + 2;
         }
-        unset($row);
 
         return $this->json($result);
     }

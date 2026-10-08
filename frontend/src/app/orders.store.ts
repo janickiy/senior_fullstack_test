@@ -141,35 +141,12 @@ export class OrdersStore {
       this.importError.set('Размер файла Excel не должен превышать 10 МБ.');
       return;
     }
-    this.submitImport(this.api.importExcel(this.shopId(), file));
-  }
-
-  exportExcel(): void {
-    this.download(
-      this.api.exportExcel(this.shopId()),
-      `orders-shop-${this.shopId()}.xlsx`,
-      this.isExporting,
-      'Не удалось выгрузить заказы в Excel. Попробуйте ещё раз.',
-    );
-  }
-
-  downloadTemplate(): void {
-    this.download(
-      this.api.templateExcel(this.shopId()),
-      'orders-template.xlsx',
-      this.isTemplateLoading,
-      'Не удалось скачать шаблон Excel. Попробуйте ещё раз.',
-    );
-  }
-
-  private submitImport(request: Observable<ImportBatchResult>): void {
     const shopId = this.shopId();
     this.isImporting.set(true);
-    this.importReport.set(null);
     this.importError.set(null);
-    this.notice.set(null);
 
-    request
+    this.api
+      .importExcel(shopId, file)
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         finalize(() => this.isImporting.set(false)),
@@ -190,6 +167,24 @@ export class OrdersStore {
           this.importError.set(this.errorMessage(error, fallback));
         },
       });
+  }
+
+  exportExcel(): void {
+    this.download(
+      this.api.exportExcel(this.shopId()),
+      `orders-shop-${this.shopId()}.xlsx`,
+      this.isExporting,
+      'Не удалось выгрузить заказы в Excel. Попробуйте ещё раз.',
+    );
+  }
+
+  downloadTemplate(): void {
+    this.download(
+      this.api.templateExcel(this.shopId()),
+      'orders-template.xlsx',
+      this.isTemplateLoading,
+      'Не удалось скачать шаблон Excel. Попробуйте ещё раз.',
+    );
   }
 
   private download(

@@ -5,7 +5,6 @@ namespace App\DTO\Order;
 use App\Enum\OrderStatus;
 use Symfony\Component\DependencyInjection\Attribute\Exclude;
 use Symfony\Component\Validator\Constraints as Assert;
-use Symfony\Component\Validator\Context\ExecutionContextInterface;
 
 #[Exclude]
 final readonly class OrderListQueryDto

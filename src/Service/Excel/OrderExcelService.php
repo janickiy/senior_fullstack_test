@@ -95,17 +95,26 @@ final class OrderExcelService
         }
     }
 
+
     /**
      * Сохраняет заказы и позиции в Excel за один проход, включая рассчитанные суммы.
      *
-     * @param iterable<OrderViewDto> $orders
+     * @param iterable $orders
+     * @param string $path
+     * @return void
      */
     public function write(iterable $orders, string $path): void
     {
         $this->writeWorkbook($orders, $path, true);
     }
 
-    /** Создаёт заполняемый шаблон с одним примером заказа на самовывоз. */
+    /**
+     * Создаёт заполняемый шаблон с одним примером заказа на самовывоз.
+     *
+     * @param string $path
+     * @return void
+     * @throws \DateMalformedStringException
+     */
     public function writeTemplate(string $path): void
     {
         $example = new OrderViewDto(
@@ -125,7 +134,12 @@ final class OrderExcelService
         $this->writeWorkbook([$example], $path, false);
     }
 
-    /** Ограничивает размер ZIP до чтения XML и определяет систему дат книги Excel. */
+    /**
+     * Ограничивает размер ZIP до чтения XML и определяет систему дат книги Excel.
+     *
+     * @param string $path
+     * @return bool
+     */
     private function checkArchive(string $path): bool
     {
         if (!is_file($path) || !is_readable($path) || filesize($path) > self::MAX_FILE_BYTES) {
@@ -187,7 +201,13 @@ final class OrderExcelService
         }
     }
 
-    /** Проверяет XML потоково и отклоняет настоящие формулы, сохраняя буквальный текст «=…». */
+    /**
+     * Проверяет XML потоково и отклоняет настоящие формулы, сохраняя буквальный текст «=…»
+     *
+     * @param string $path
+     * @param string $entryName
+     * @return bool
+     */
     private function checkXml(string $path, string $entryName): bool
     {
         $previousErrorMode = libxml_use_internal_errors(true);
@@ -232,16 +252,21 @@ final class OrderExcelService
         }
     }
 
-    /** Читает строки листа, проверяя заголовки и ограничения количества строк. */
+    /**
+     * @param ReaderSheet $sheet
+     * @param array $requiredHeaders
+     * @return array
+     */
     private function readSheet(ReaderSheet $sheet, array $requiredHeaders): array
     {
+        $sheetName = $sheet->getName();
         $columns = null;
         $rows = [];
-        $limit = self::ORDERS_SHEET === $sheet->getName() ? self::MAX_ORDERS : self::MAX_ITEMS;
+        $limit = self::ORDERS_SHEET === $sheetName ? self::MAX_ORDERS : self::MAX_ITEMS;
 
         foreach ($sheet->getRowIterator() as $rowNumber => $row) {
             if ($rowNumber > self::MAX_PHYSICAL_ROWS) {
-                throw new InvalidExcelFileException('В листе «'.$sheet->getName().'» слишком много строк. Удалите лишние пустые строки.');
+                throw new InvalidExcelFileException('В листе «'.$sheetName.'» слишком много строк. Удалите лишние пустые строки.');
             }
 
             if ([] === $requiredHeaders) {
@@ -251,12 +276,12 @@ final class OrderExcelService
             $values = array_map(static fn (Cell $cell): mixed => $cell instanceof TextRunCell ? $cell->getStringValue() : $cell->getValue(), $row->cells);
 
             if (1 === $rowNumber) {
-                $columns = $this->headerColumns($values, $requiredHeaders, $sheet->getName());
+                $columns = $this->headerColumns($values, $requiredHeaders, $sheetName);
                 continue;
             }
 
             if (null === $columns) {
-                throw new InvalidExcelFileException('Первая строка листа «'.$sheet->getName().'» должна содержать заголовки.');
+                throw new InvalidExcelFileException('Первая строка листа «'.$sheetName.'» должна содержать заголовки.');
             }
 
             $mapped = [];
@@ -270,7 +295,7 @@ final class OrderExcelService
             }
 
             if (\count($rows) >= $limit) {
-                throw new InvalidExcelFileException('Лист «'.$sheet->getName().'» содержит больше '.$limit.' записей.');
+                throw new InvalidExcelFileException('Лист «'.$sheetName.'» содержит больше '.$limit.' записей.');
             }
 
             $mapped['_source_row'] = $rowNumber;
@@ -278,13 +303,18 @@ final class OrderExcelService
         }
 
         if ([] !== $requiredHeaders && null === $columns) {
-            throw new InvalidExcelFileException('Лист «'.$sheet->getName().'» пуст: добавьте заголовки в первую строку.');
+            throw new InvalidExcelFileException('Лист «'.$sheetName.'» пуст: добавьте заголовки в первую строку.');
         }
 
         return $rows;
     }
 
-    /** Находит обязательные столбцы по названию, независимо от их порядка. */
+    /**
+     * @param array $values
+     * @param array $requiredHeaders
+     * @param string $sheetName
+     * @return array
+     */
     private function headerColumns(array $values, array $requiredHeaders, string $sheetName): array
     {
         $columns = [];
@@ -312,11 +342,16 @@ final class OrderExcelService
         return array_intersect_key($columns, array_flip($requiredHeaders));
     }
 
-    /** Связывает позиции с заказами по номеру, сохраняя порядок и повторяющиеся заказы. */
+    /**
+     * @param array $orderRows
+     * @param array $itemRows
+     * @param bool $use1904Dates
+     * @return array
+     */
     private function assembleOrders(array $orderRows, array $itemRows, bool $use1904Dates): array
     {
         $orders = [];
-        $knownIds = [];
+        $itemsById = [];
 
         foreach ($orderRows as $row) {
             $id = $this->text($row['Номер заказа']);
@@ -339,16 +374,14 @@ final class OrderExcelService
             ];
 
             if (\is_string($id) && '' !== $id) {
-                $knownIds[$id] = true;
+                $itemsById[$id] = [];
             }
         }
-
-        $itemsById = [];
 
         foreach ($itemRows as $row) {
             $id = $this->text($row['Номер заказа']);
 
-            if (!\is_string($id) || '' === $id || !isset($knownIds[$id])) {
+            if (!\is_string($id) || '' === $id || !isset($itemsById[$id])) {
                 throw new InvalidExcelFileException('Лист «Позиции», строка '.$row['_source_row'].': номер заказа отсутствует в листе «Заказы».');
             }
 
@@ -360,12 +393,11 @@ final class OrderExcelService
             ];
         }
 
-        foreach ($orders as &$order) {
+        foreach ($orders as $index => $order) {
             if (\is_string($order['id'])) {
-                $order['items'] = $itemsById[$order['id']] ?? [];
+                $orders[$index]['items'] = $itemsById[$order['id']] ?? [];
             }
         }
-        unset($order);
 
         return $orders;
     }
@@ -413,7 +445,13 @@ final class OrderExcelService
         return $value;
     }
 
-    /** Приводит Excel-даты, времена и поддерживаемые строки к формату API по московскому времени. */
+    /**
+     * @param mixed $value
+     * @param string $kind
+     * @param bool $use1904Dates
+     * @return mixed
+     * @throws \DateMalformedStringException
+     */
     private function dateValue(mixed $value, string $kind, bool $use1904Dates): mixed
     {
         $timezone = new \DateTimeZone('Europe/Moscow');
@@ -453,7 +491,12 @@ final class OrderExcelService
         });
     }
 
-    /** Читает дату строго по формату, без исправления некорректных дней и месяцев. */
+    /**
+     * @param string $value
+     * @param string $format
+     * @param \DateTimeZone $timezone
+     * @return \DateTimeImmutable|null
+     */
     private function parseDate(string $value, string $format, \DateTimeZone $timezone): ?\DateTimeImmutable
     {
         $date = \DateTimeImmutable::createFromFormat('!'.$format, $value, $timezone);
@@ -479,20 +522,21 @@ final class OrderExcelService
             $itemsSheet->setColumnWidth(35, 3);
             $textStyle = $style->withFormat('@');
             $moneyStyle = $style->withFormat('0.00');
+            $timeStyle = $style->withFormat('hh:mm');
             $orderStyles = [
                 0 => $textStyle, 2 => $style->withFormat('yyyy-mm-dd hh:mm:ss'), 4 => $textStyle,
-                8 => $style->withFormat('yyyy-mm-dd'), 9 => $style->withFormat('hh:mm'),
-                10 => $style->withFormat('hh:mm'), 11 => $moneyStyle,
+                8 => $style->withFormat('yyyy-mm-dd'), 9 => $timeStyle,
+                10 => $timeStyle, 11 => $moneyStyle,
                 12 => $moneyStyle, 13 => $moneyStyle, 14 => $moneyStyle,
             ];
             $timezone = new \DateTimeZone('Europe/Moscow');
 
             foreach ($orders as $order) {
-                $startsAt = null === $order->delivery['starts_at'] ? null : (new \DateTimeImmutable($order->delivery['starts_at']))->setTimezone($timezone);
-                $endsAt = null === $order->delivery['ends_at'] ? null : (new \DateTimeImmutable($order->delivery['ends_at']))->setTimezone($timezone);
+                $startsAt = $this->exportDate($order->delivery['starts_at'], $timezone);
+                $endsAt = $this->exportDate($order->delivery['ends_at'], $timezone);
                 $values = [
                     $order->marketplaceId, OrderStatus::from($order->status)->toMarketplace(),
-                    (new \DateTimeImmutable($order->createdAt))->setTimezone($timezone),
+                    $this->exportDate($order->createdAt, $timezone),
                     $order->customer['name'], $order->customer['phone'], $order->delivery['type'],
                     $order->delivery['district'], $order->delivery['address'],
                     $startsAt, $startsAt, $endsAt, OrderViewDto::rubles($order->marketplaceTotalCents),
@@ -526,7 +570,23 @@ final class OrderExcelService
         }
     }
 
-    /** Создаёт лист с заголовками, шириной столбцов и закреплённой первой строкой. */
+    /** Преобразует время заказа в московскую дату Excel; пустое значение оставляет пустым. */
+    private function exportDate(?string $value, \DateTimeZone $timezone): ?\DateTimeImmutable
+    {
+        return null === $value ? null : (new \DateTimeImmutable($value))->setTimezone($timezone);
+    }
+
+    /**
+     * @param Writer $writer
+     * @param string $name
+     * @param array $headers
+     * @param bool $create
+     * @return WriterSheet
+     * @throws \OpenSpout\Common\Exception\IOException
+     * @throws \OpenSpout\Common\Exception\InvalidArgumentException
+     * @throws \OpenSpout\Writer\Exception\InvalidSheetNameException
+     * @throws \OpenSpout\Writer\Exception\WriterNotOpenedException
+     */
     private function prepareSheet(Writer $writer, string $name, array $headers, bool $create = false): WriterSheet
     {
         $sheet = $create ? $writer->addNewSheetAndMakeItCurrent() : $writer->getCurrentSheet();

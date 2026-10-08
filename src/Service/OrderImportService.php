@@ -36,11 +36,11 @@ final class OrderImportService
         $results = [];
         foreach ($request->orders as $index => $rawOrder) {
             $marketplaceId = $this->extractId($rawOrder);
+            if (null !== $marketplaceId && isset($seen[$marketplaceId])) {
+                $results[] = new ImportOrderResultDto($index, $marketplaceId, 'duplicate', 'duplicate_in_batch', 'Повтор идентификатора в пачке: обработано первое вхождение.');
+                continue;
+            }
             if (null !== $marketplaceId) {
-                if (isset($seen[$marketplaceId])) {
-                    $results[] = new ImportOrderResultDto($index, $marketplaceId, 'duplicate', 'duplicate_in_batch', 'Повтор идентификатора в пачке: обработано первое вхождение.');
-                    continue;
-                }
                 $seen[$marketplaceId] = true;
             }
             try {
