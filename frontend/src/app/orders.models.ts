@@ -2,10 +2,6 @@ export type OrderStatus = 'new' | 'accepted' | 'delivering' | 'delivered' | 'can
 
 export type ImportOutcome = 'created' | 'updated' | 'unchanged' | 'duplicate' | 'rejected';
 
-export interface MarketplaceBatch {
-  orders: unknown[];
-}
-
 export interface OrderItem {
   sku: string;
   name: string;
@@ -58,6 +54,7 @@ export interface ImportValidationError {
 
 export interface ImportOrderResult {
   index: number;
+  source_row?: number;
   marketplace_id: string | null;
   outcome: ImportOutcome;
   code: string;

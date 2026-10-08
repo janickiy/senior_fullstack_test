@@ -155,4 +155,26 @@ final class OrderRepository extends ServiceEntityRepository implements OrderRepo
 
         return new OrderPageDto(array_map(OrderViewDto::fromEntity(...), $orders), $query->page, $query->limit, $total);
     }
+
+    /**
+     * Читает все заказы магазина для выгрузки и освобождает обработанные сущности
+     * из менеджера Doctrine, чтобы не накапливать весь список в памяти.
+     *
+     * @return iterable<OrderViewDto>
+     */
+    public function iterateForShop(string $shopId): iterable
+    {
+        $manager = $this->getEntityManager();
+        $orders = $this->createQueryBuilder('orders')
+            ->where('orders.shopId = :shop')->setParameter('shop', $shopId)
+            ->orderBy('orders.createdAt', 'DESC')->addOrderBy('orders.id', 'DESC')
+            ->getQuery()->setHint(Query::HINT_REFRESH, true)->toIterable();
+
+        foreach ($orders as $order) {
+            $view = OrderViewDto::fromEntity($order);
+            $manager->detach($order);
+
+            yield $view;
+        }
+    }
 }

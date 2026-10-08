@@ -16,22 +16,58 @@
   <div class="page-heading">
     <h1>Заказы</h1>
     <div class="page-actions">
+      <input
+        #excelFile
+        type="file"
+        accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        hidden
+        (change)="importExcel($event)"
+      />
       <button
-        class="button button-primary import-button"
+        class="text-button excel-template"
         type="button"
-        (click)="importOrders()"
+        (click)="store.downloadTemplate()"
+        [disabled]="store.isTemplateLoading() || store.isImporting()"
+      >
+        {{ store.isTemplateLoading() ? 'Готовим шаблон…' : 'Шаблон Excel' }}
+      </button>
+      <button
+        class="button button-outline"
+        type="button"
+        (click)="store.exportExcel()"
+        [disabled]="store.isExporting() || store.isImporting()"
+        title="Все заказы магазина, независимо от выбранного статуса и страницы"
+      >
+        @if (store.isExporting()) {
+          <span class="spinner" aria-hidden="true"></span>Выгружаем…
+        } @else {
+          Выгрузить заказы
+        }
+      </button>
+      <button
+        class="button button-primary"
+        type="button"
+        (click)="excelFile.click()"
         [disabled]="store.isImporting()"
+        title="Файл .xlsx до 10 МБ. Для подготовки используйте шаблон Excel"
       >
         @if (store.isImporting()) {
           <span class="spinner" aria-hidden="true"></span>Загружаем…
         } @else {
-          <svg aria-hidden="true" viewBox="0 0 24 24">
-            <path d="M12 3v12 M7 10l5 5 5-5 M5 15v5h14v-5" /></svg
-          >Загрузить заказы
+          Загрузить заказы
         }
       </button>
     </div>
   </div>
+
+  @if (store.downloadError(); as error) {
+    <div class="alert alert-error download-error" role="alert">
+      <div>
+        <strong>Файл не скачан</strong>
+        <p>{{ error }}</p>
+      </div>
+    </div>
+  }
 
   <div class="sr-only" role="status" aria-live="polite">
     {{ store.isImporting() ? 'Идёт загрузка заказов.' : store.notice() }}
@@ -46,7 +82,7 @@
       <button
         class="button button-outline"
         type="button"
-        (click)="importOrders()"
+        (click)="excelFile.click()"
         [disabled]="store.isImporting()"
       >
         Повторить загрузку
@@ -59,7 +95,12 @@
       <div class="section-heading">
         <div>
           <h2 id="results-heading">Результат загрузки</h2>
-          <p>Обработано {{ report.summary.total }} записей · магазин {{ store.shopId() }}</p>
+          <p>
+            Обработано {{ report.summary.total }} записей · магазин {{ store.shopId() }}
+            @if (store.importFileName(); as filename) {
+              · {{ filename }}
+            }
+          </p>
         </div>
         <button
           class="text-button"
@@ -85,7 +126,7 @@
             <li class="result-row">
               <div class="result-id">
                 <strong>{{ result.marketplace_id || 'Без номера' }}</strong
-                ><span>Строка {{ result.index + 1 }}</span>
+                ><span>Строка {{ result.source_row ?? result.index + 1 }}</span>
               </div>
               <span [class]="'outcome-badge outcome-' + result.outcome">{{
                 outcomeLabel(result.outcome)
@@ -193,7 +234,7 @@
         ></span>
         @if (store.status()) {
           <h3>С этим статусом заказов нет</h3>
-          <p>Выберите другой статус или загрузите заказы маркетплейса.</p>
+          <p>Выберите другой статус или загрузите заказы из Excel.</p>
           <button class="text-button" type="button" (click)="store.setStatus('')">
             Показать все заказы
           </button>

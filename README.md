@@ -8,8 +8,9 @@
 
 ## Пакеты
 
-- Symfony 8.1, Serializer, Validator — API.
+- Symfony 8.1, Serializer, Validator, Mime, PropertyInfo и PropertyAccess — API и проверка файлов.
 - Doctrine ORM, DoctrineBundle, Doctrine Migrations — работа с базой и миграции.
+- OpenSpout — загрузка и выгрузка заказов в Excel (`.xlsx`).
 - Angular 22, TypeScript 6, RxJS 7 — интерфейс магазина.
 - PHP 8.4 FPM, MySQL 8.4, Memcached 1.6, Nginx — серверное окружение.
 - Node.js 24 — сборка Angular; PHPUnit 13 и Vitest — тесты.

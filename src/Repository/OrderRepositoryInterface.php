@@ -22,4 +22,12 @@ interface OrderRepositoryInterface
      * Номер страницы и её размер берёт из параметров запроса.
      */
     public function findPageForShop(string $shopId, OrderListQueryDto $query): OrderPageDto;
+
+    /**
+     * Последовательно возвращает все заказы магазина для выгрузки, без пагинации
+     * и фильтра по статусу, в порядке от новых к старым.
+     *
+     * @return iterable<\App\DTO\Order\OrderViewDto>
+     */
+    public function iterateForShop(string $shopId): iterable;
 }

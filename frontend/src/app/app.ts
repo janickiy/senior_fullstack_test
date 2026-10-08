@@ -102,9 +102,14 @@ export class App implements OnInit {
     return `${window.location.pathname}${window.location.search}#orders`;
   }
 
-  importOrders(): void {
-    this.reportExpanded.set(true);
-    this.store.importOrders();
+  importExcel(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (file) {
+      this.reportExpanded.set(true);
+      this.store.importExcel(file);
+    }
   }
 
   money(value: number): string {

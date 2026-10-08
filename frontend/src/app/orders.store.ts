@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { DestroyRef, computed, inject, Injectable, signal } from '@angular/core';
+import { DestroyRef, computed, inject, Injectable, signal, WritableSignal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { finalize, Subscription } from 'rxjs';
+import { finalize, Observable, Subscription } from 'rxjs';
 import { OrdersApi } from './orders-api';
 import { ImportBatchResult, OrderPagination, OrderStatus, OrderView } from './orders.models';
 
@@ -24,6 +24,10 @@ export class OrdersStore {
   readonly importReport = signal<ImportBatchResult | null>(null);
   readonly listError = signal<string | null>(null);
   readonly importError = signal<string | null>(null);
+  readonly importFileName = signal<string | null>(null);
+  readonly isExporting = signal(false);
+  readonly isTemplateLoading = signal(false);
+  readonly downloadError = signal<string | null>(null);
   readonly notice = signal<string | null>(null);
   readonly hasOrders = computed(() => this.orders().length > 0);
 
@@ -48,6 +52,8 @@ export class OrdersStore {
     this.shopId.set(shopId);
     this.importReport.set(null);
     this.importError.set(null);
+    this.importFileName.set(null);
+    this.downloadError.set(null);
     this.notice.set(null);
     this.resetList();
     this.refresh();
@@ -120,18 +126,50 @@ export class OrdersStore {
     this.refresh();
   }
 
-  importOrders(): void {
+  importExcel(file: File): void {
     if (this.isImporting()) {
       return;
     }
+    this.importFileName.set(file.name);
+    this.importReport.set(null);
+    this.notice.set(null);
+    if (!file.name.toLowerCase().endsWith('.xlsx')) {
+      this.importError.set('Выберите файл Excel с расширением .xlsx.');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      this.importError.set('Размер файла Excel не должен превышать 10 МБ.');
+      return;
+    }
+    this.submitImport(this.api.importExcel(this.shopId(), file));
+  }
+
+  exportExcel(): void {
+    this.download(
+      this.api.exportExcel(this.shopId()),
+      `orders-shop-${this.shopId()}.xlsx`,
+      this.isExporting,
+      'Не удалось выгрузить заказы в Excel. Попробуйте ещё раз.',
+    );
+  }
+
+  downloadTemplate(): void {
+    this.download(
+      this.api.templateExcel(this.shopId()),
+      'orders-template.xlsx',
+      this.isTemplateLoading,
+      'Не удалось скачать шаблон Excel. Попробуйте ещё раз.',
+    );
+  }
+
+  private submitImport(request: Observable<ImportBatchResult>): void {
     const shopId = this.shopId();
     this.isImporting.set(true);
     this.importReport.set(null);
     this.importError.set(null);
     this.notice.set(null);
 
-    this.api
-      .importOrders(shopId)
+    request
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         finalize(() => this.isImporting.set(false)),
@@ -150,6 +188,42 @@ export class OrdersStore {
           const fallback =
             'Не удалось получить результат импорта. Можно повторить — заказы не продублируются.';
           this.importError.set(this.errorMessage(error, fallback));
+        },
+      });
+  }
+
+  private download(
+    request: Observable<Blob>,
+    filename: string,
+    loading: WritableSignal<boolean>,
+    fallback: string,
+  ): void {
+    if (loading() || this.isImporting()) {
+      return;
+    }
+    const shopId = this.shopId();
+    loading.set(true);
+    this.downloadError.set(null);
+    request
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => loading.set(false)),
+      )
+      .subscribe({
+        next: (blob) => {
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = filename;
+          document.body.append(link);
+          link.click();
+          link.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        },
+        error: (error: unknown) => {
+          if (shopId === this.shopId()) {
+            this.downloadError.set(this.errorMessage(error, fallback));
+          }
         },
       });
   }

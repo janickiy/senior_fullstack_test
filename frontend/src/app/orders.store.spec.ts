@@ -83,7 +83,12 @@ describe('OrdersStore', () => {
     http = TestBed.inject(HttpTestingController);
   });
 
-  afterEach(() => http.verify({ ignoreCancelled: true }));
+  afterEach(() => {
+    http.verify({ ignoreCancelled: true });
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
 
   it('loads only when requested and preserves server-calculated ruble amounts and review flags', () => {
     http.expectNone(() => true);
@@ -184,14 +189,13 @@ describe('OrdersStore', () => {
     store.setStatus('new');
     http.expectOne('/api/shops/1/orders?page=1&limit=10&status=new').flush(page());
 
-    store.importOrders();
-    store.importOrders();
+    const file = new File(['xlsx'], 'orders.xlsx');
+    store.importExcel(file);
+    store.importExcel(file);
     expect(store.isImporting()).toBe(true);
     expect(store.setShop('2')).toBe(false);
-    const asset = http.expectOne('/assets/marketplace-orders.json');
-    asset.flush({ orders: [{ id: 'MP-1009' }, { id: 'MP-1007' }] });
-    store.importOrders();
-    http.expectOne('/api/shops/1/orders/import').flush(report);
+    store.importExcel(file);
+    http.expectOne('/api/shops/1/orders/import/excel').flush(report);
 
     expect(store.isImporting()).toBe(false);
     expect(store.importReport()).toEqual(report);
@@ -203,26 +207,24 @@ describe('OrdersStore', () => {
   });
 
   it('never retries a failed POST automatically and allows an explicit repeat', () => {
-    store.importOrders();
-    http.expectOne('/assets/marketplace-orders.json').flush({ orders: [{ id: 'MP-1009' }] });
-    http.expectOne('/api/shops/1/orders/import').error(new ProgressEvent('error'));
+    const file = new File(['xlsx'], 'orders.xlsx');
+    store.importExcel(file);
+    http.expectOne('/api/shops/1/orders/import/excel').error(new ProgressEvent('error'));
     expect(store.importReport()).toBeNull();
     expect(store.importError()).toContain('Можно повторить');
     expect(store.isImporting()).toBe(false);
     http.expectNone(() => true);
 
-    store.importOrders();
+    store.importExcel(file);
     expect(store.importError()).toBeNull();
-    http.expectOne('/assets/marketplace-orders.json').flush({ orders: [{ id: 'MP-1009' }] });
-    http.expectOne('/api/shops/1/orders/import').flush(report);
+    http.expectOne('/api/shops/1/orders/import/excel').flush(report);
     http.expectOne('/api/shops/1/orders?page=1&limit=10').flush(page([sampleOrder]));
     expect(store.importReport()).toEqual(report);
   });
 
   it('keeps a successful import report if refreshing the saved list fails', () => {
-    store.importOrders();
-    http.expectOne('/assets/marketplace-orders.json').flush({ orders: [{ id: 'MP-1009' }] });
-    http.expectOne('/api/shops/1/orders/import').flush(report);
+    store.importExcel(new File(['xlsx'], 'orders.xlsx'));
+    http.expectOne('/api/shops/1/orders/import/excel').flush(report);
     http
       .expectOne('/api/shops/1/orders?page=1&limit=10')
       .flush('Unavailable', { status: 503, statusText: 'Unavailable' });
@@ -240,5 +242,117 @@ describe('OrdersStore', () => {
         { status: 422, statusText: 'Unprocessable Entity' },
       );
     expect(store.listError()).toBe('Неизвестный статус заказа.');
+  });
+
+  it('validates Excel extension and size before uploading, and accepts uppercase XLSX', () => {
+    store.importExcel(new File(['content'], 'orders.csv'));
+    expect(store.importError()).toContain('.xlsx');
+    http.expectNone(() => true);
+
+    const oversized = new File(['content'], 'orders.xlsx');
+    Object.defineProperty(oversized, 'size', { value: 10 * 1024 * 1024 + 1 });
+    store.importExcel(oversized);
+    expect(store.importError()).toContain('10 МБ');
+    expect(store.isImporting()).toBe(false);
+    http.expectNone(() => true);
+
+    store.importExcel(new File(['content'], 'orders.XLSX'));
+    expect(store.importError()).toBeNull();
+    http.expectOne('/api/shops/1/orders/import/excel').flush(report);
+    http.expectOne('/api/shops/1/orders?page=1&limit=10').flush(page());
+  });
+
+  it('ignores another selected file during import and preserves the report filename, source rows and filter', () => {
+    store.setStatus('accepted');
+    http.expectOne('/api/shops/1/orders?page=1&limit=10&status=accepted').flush(page());
+    const file = new File(['content'], 'orders.xlsx');
+    store.importExcel(file);
+    store.importExcel(file);
+    store.importExcel(new File(['other'], 'other-orders.xlsx'));
+    expect(store.isImporting()).toBe(true);
+    expect(store.importFileName()).toBe('orders.xlsx');
+    const excelReport = {
+      ...report,
+      results: report.results.map((result) => ({ ...result, source_row: result.index + 2 })),
+    };
+    http.expectOne('/api/shops/1/orders/import/excel').flush(excelReport);
+    expect(store.importReport()).toEqual(excelReport);
+    expect(store.isImporting()).toBe(false);
+    http.expectOne('/api/shops/1/orders?page=1&limit=10&status=accepted').flush(page());
+
+    expect(store.importFileName()).toBe('orders.xlsx');
+  });
+
+  it('shows Excel validation errors and allows explicitly uploading the same file again', () => {
+    const file = new File(['content'], 'orders.xlsx');
+    store.importExcel(file);
+    http
+      .expectOne('/api/shops/1/orders/import/excel')
+      .flush(
+        { detail: 'Не найдена колонка id.' },
+        { status: 422, statusText: 'Unprocessable Entity' },
+      );
+    expect(store.importError()).toBe('Не найдена колонка id.');
+    expect(store.isImporting()).toBe(false);
+    expect(store.importReport()).toBeNull();
+    http.expectNone(() => true);
+    store.importExcel(file);
+    http.expectOne('/api/shops/1/orders/import/excel').flush(report);
+    http.expectOne('/api/shops/1/orders?page=1&limit=10').flush(page());
+  });
+
+  it('downloads all orders with a shop filename, guards repeated clicks and revokes the URL after initiation', () => {
+    vi.useFakeTimers();
+    const create = vi.fn().mockReturnValue('blob:orders');
+    const revoke = vi.fn();
+    vi.stubGlobal('URL', { createObjectURL: create, revokeObjectURL: revoke });
+    let filename = '';
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      filename = this.download;
+      expect(this.href).toBe('blob:orders');
+      expect(this.isConnected).toBe(true);
+      expect(revoke).not.toHaveBeenCalled();
+    });
+
+    store.setStatus('cancelled');
+    http.expectOne('/api/shops/1/orders?page=1&limit=10&status=cancelled').flush(page());
+    store.exportExcel();
+    store.exportExcel();
+    expect(store.isExporting()).toBe(true);
+    const blob = new Blob(['xlsx']);
+    http.expectOne('/api/shops/1/orders/export/excel').flush(blob);
+    expect(create).toHaveBeenCalledWith(blob);
+    expect(filename).toBe('orders-shop-1.xlsx');
+    expect(store.isExporting()).toBe(false);
+    expect(revoke).not.toHaveBeenCalled();
+    expect(document.querySelector('a[download="orders-shop-1.xlsx"]')).toBeNull();
+    vi.advanceTimersByTime(1000);
+    expect(revoke).toHaveBeenCalledWith('blob:orders');
+  });
+
+  it('downloads a named Excel template and shows a recoverable error without triggering a download', () => {
+    vi.useFakeTimers();
+    const create = vi.fn().mockReturnValue('blob:template');
+    vi.stubGlobal('URL', { createObjectURL: create, revokeObjectURL: vi.fn() });
+    let filename = '';
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      filename = this.download;
+    });
+    store.downloadTemplate();
+    http.expectOne('/api/shops/1/orders/template/excel').error(new ProgressEvent('error'));
+    expect(store.downloadError()).toContain('Не удалось скачать шаблон Excel');
+    expect(store.isTemplateLoading()).toBe(false);
+    expect(create).not.toHaveBeenCalled();
+
+    store.downloadTemplate();
+    expect(store.downloadError()).toBeNull();
+    http.expectOne('/api/shops/1/orders/template/excel').flush(new Blob(['xlsx']));
+    expect(filename).toBe('orders-template.xlsx');
+    expect(store.isTemplateLoading()).toBe(false);
+    vi.runAllTimers();
   });
 });

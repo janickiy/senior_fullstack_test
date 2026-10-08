@@ -1,33 +1,6 @@
-import type {
-  ImportBatchResult,
-  ImportOrderResult,
-  MarketplaceBatch,
-  OrderPage,
-  OrderView,
-} from './orders.models';
+import type { ImportBatchResult, ImportOrderResult, OrderPage, OrderView } from './orders.models';
 
 // Ответы API для проверки поведения интерфейса через HTTP, без подмены store.
-export const fixturePayload: MarketplaceBatch = {
-  orders: [
-    {
-      id: 'MP-1001',
-      status: 'NEW',
-      created_at: '2026-10-08T09:00:00+03:00',
-      customer: { name: 'Анна Лебедева', phone: '+7 (900) 123-45-67' },
-      delivery: {
-        type: 'delivery',
-        district: 'centre',
-        address: 'ул. Большая Садовая, 10, кв. 4',
-        date: '2026-10-10',
-        time_from: '14:00',
-        time_to: '16:00',
-      },
-      items: [{ sku: 'B-101', name: 'Букет «Нежность»', qty: 1, price: 3200 }],
-      total: 3200,
-    },
-  ],
-};
-
 export const savedOrder: OrderView = {
   id: 1,
   marketplace_id: 'MP-1001',

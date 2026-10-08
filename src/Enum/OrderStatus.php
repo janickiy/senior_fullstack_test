@@ -30,6 +30,12 @@ enum OrderStatus: string
         return array_keys(self::MARKETPLACE_STATUSES);
     }
 
+    /** Возвращает статус маркетплейса для выгрузки заказа и повторного импорта. */
+    public function toMarketplace(): string
+    {
+        return array_search($this, self::MARKETPLACE_STATUSES, true);
+    }
+
     public function isFinal(): bool
     {
         return self::Delivered === $this || self::Cancelled === $this;

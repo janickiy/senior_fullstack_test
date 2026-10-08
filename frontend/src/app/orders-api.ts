@@ -1,7 +1,7 @@
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { Observable, switchMap } from 'rxjs';
-import { ImportBatchResult, MarketplaceBatch, OrderPage, OrderStatus } from './orders.models';
+import { catchError, from, mergeMap, Observable, throwError } from 'rxjs';
+import { ImportBatchResult, OrderPage, OrderStatus } from './orders.models';
 
 @Injectable({ providedIn: 'root' })
 export class OrdersApi {
@@ -21,14 +21,54 @@ export class OrdersApi {
     return this.http.get<OrderPage>(this.ordersUrl(shopId), { params });
   }
 
-  importOrders(shopId: string): Observable<ImportBatchResult> {
-    return this.http
-      .get<MarketplaceBatch>('/assets/marketplace-orders.json')
-      .pipe(
-        switchMap((batch) =>
-          this.http.post<ImportBatchResult>(`${this.ordersUrl(shopId)}/import`, batch),
-        ),
-      );
+  importExcel(shopId: string, file: File): Observable<ImportBatchResult> {
+    const body = new FormData();
+    body.append('file', file, file.name);
+    return this.http.post<ImportBatchResult>(`${this.ordersUrl(shopId)}/import/excel`, body);
+  }
+
+  exportExcel(shopId: string): Observable<Blob> {
+    return this.download(`${this.ordersUrl(shopId)}/export/excel`);
+  }
+
+  templateExcel(shopId: string): Observable<Blob> {
+    return this.download(`${this.ordersUrl(shopId)}/template/excel`);
+  }
+
+  private download(url: string): Observable<Blob> {
+    return this.http.get(url, { responseType: 'blob' }).pipe(
+      catchError((error: unknown) => {
+        if (!(error instanceof HttpErrorResponse) || !(error.error instanceof Blob)) {
+          return throwError(() => error);
+        }
+        return from(this.decodeDownloadError(error)).pipe(
+          mergeMap((decoded) => throwError(() => decoded)),
+        );
+      }),
+    );
+  }
+
+  private decodeDownloadError(error: HttpErrorResponse): Promise<HttpErrorResponse> {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onerror = () => resolve(error);
+      reader.onload = () => {
+        try {
+          resolve(
+            new HttpErrorResponse({
+              error: JSON.parse(String(reader.result)),
+              headers: error.headers,
+              status: error.status,
+              statusText: error.statusText,
+              url: error.url ?? undefined,
+            }),
+          );
+        } catch {
+          resolve(error);
+        }
+      };
+      reader.readAsText(error.error);
+    });
   }
 
   private ordersUrl(shopId: string): string {

@@ -107,8 +107,14 @@
 }
 .page-actions {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
   gap: 12px;
+}
+.excel-template {
+  font-size: 12px;
+  min-height: 44px;
 }
 .eyebrow {
   color: var(--green);
@@ -936,6 +942,16 @@ h2 {
   }
   .page-actions {
     width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .page-actions > .button {
+    padding-inline: 10px;
+    font-size: 12px;
+  }
+  .excel-template {
+    grid-column: 1 / -1;
+    justify-self: end;
   }
   .page-tag {
     display: none;
@@ -951,12 +967,6 @@ h2 {
     font-size: 13px;
     max-width: 310px;
     margin-top: 10px;
-  }
-  .import-button {
-    width: 100%;
-    margin-top: 0;
-    min-height: 48px;
-    font-size: 14px;
   }
   .section-heading {
     padding: 20px 18px 16px;

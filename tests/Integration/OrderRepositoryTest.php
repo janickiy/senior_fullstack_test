@@ -134,6 +134,6 @@ final class OrderRepositoryTest extends KernelTestCase
 
     private function fixture(): array
     {
-        return json_decode(file_get_contents(dirname(__DIR__, 2).'/public/assets/marketplace-orders.json'), true, flags: JSON_THROW_ON_ERROR);
+        return json_decode(file_get_contents(dirname(__DIR__).'/Fixtures/marketplace-orders.json'), true, flags: JSON_THROW_ON_ERROR);
     }
 }
